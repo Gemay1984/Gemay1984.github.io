@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Aprende Jugando con los Textos!</title>
+    <!-- CDN de Tailwind CSS para estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- CDN de la fuente Inter para un aspecto moderno y legible -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+    <!-- CDN de Tone.js para efectos de sonido programáticos -->
+    <script src="https://unpkg.com/tone"></script>
+    <style>
+        /* Establece la fuente global para el cuerpo del documento */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Animación de rebote para el título principal */
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(-5%);
+                animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+            }
+            50% {
+                transform: translateY(0);
+                animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+            }
+        }
+        .animate-bounce {
+            animation: bounce 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- El elemento raíz donde se montará la aplicación React -->
+    <div id="root"></div>
+
+    <!-- CDNs de React y ReactDOM para permitir que JSX se ejecute en el navegador -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- CDN de Babel para transformar el código JSX en JavaScript que el navegador pueda entender.
+         Esto es útil para desarrollo, pero en producción se compilaría previamente. -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Script principal de la aplicación React. El tipo "text/babel" le dice a Babel que lo procese. -->
+    <script type="text/babel">
+        // Componente principal de la aplicación
+        const App = () => {
+            // Estado para controlar qué página se muestra actualmente
+            const [currentPage, setCurrentPage] = React.useState('home');
+
+            // Referencias para los sintetizadores de sonido de Tone.js
+            const correctSynth = React.useRef(null);
+            const incorrectSynth = React.useRef(null);
+            const isToneInitialized = React.useRef(false); // Bandera para saber si Tone.js ya se inicializó
+
+            // Función asincrónica para inicializar Tone.js y reproducir un sonido
+            const initializeAndPlaySound = async (soundType) => {
+                // Inicializa Tone.js solo una vez al primer clic del usuario
+                if (!isToneInitialized.current) {
+                    await Tone.start(); // Inicia el contexto de audio (requiere interacción del usuario)
+                    // Configuración del sintetizador para el sonido correcto
+                    correctSynth.current = new Tone.Synth({
+                        oscillator: { type: "sine" },
+                        envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.5 },
+                    }).toDestination();
+                    // Configuración del sintetizador para el sonido incorrecto
+                    incorrectSynth.current = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "square" },
+                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.1 },
+                        volume: -10 // Volumen ligeramente más bajo para el incorrecto
+                    }).toDestination();
+                    isToneInitialized.current = true;
+                    console.log("Tone.js initialized");
+                }
+
+                // Reproduce el sonido según el tipo
+                if (soundType === 'correct' && correctSynth.current) {
+                    correctSynth.current.triggerAttackRelease("C5", "8n"); // Nota C5, duración de una corchea
+                } else if (soundType === 'incorrect' && incorrectSynth.current) {
+                    incorrectSynth.current.triggerAttackRelease(["C3", "C#3"], "8n"); // Acorde disonante
+                }
+            };
+
+            // Función para cambiar la página mostrada
+            const navigateTo = (page) => {
+                setCurrentPage(page);
+            };
+
+            // Función que renderiza el componente de la página actual basado en el estado 'currentPage'
+            const renderPage = () => {
+                // Pasa initializeAndPlaySound a todas las páginas para que puedan reproducir sonidos
+                return React.createElement(
+                    {
+                        'home': HomePage,
+                        'narrativo': NarrativeTextPage,
+                        'descriptivo': DescriptiveTextPage,
+                        'expositivo': ExpositoryTextPage,
+                        'argumentativo': ArgumentativeTextPage,
+                        'teoria': TheoryPage
+                    }[currentPage] || HomePage,
+                    { navigateTo, initializeAndPlaySound }
+                );
+            };
+
+            return (
+                // Contenedor principal con estilos de fondo y texto generales de Tailwind CSS
+                <div className="min-h-screen bg-[#1a1a2e] text-[#e0e0e0] font-inter p-4 sm:p-8">
+                    {/* Contenedor central de la aplicación con estilos de tarjeta */}
+                    <div className="max-w-6xl mx-auto bg-[#2a2a4a] rounded-xl shadow-lg p-6 sm:p-10 border border-[#3a3a5a]">
+                        {renderPage()} {/* Renderiza la página activa */}
+                    </div>
+                </div>
+            );
+        };
+
+        // Componente reutilizable para los botones de navegación
+        const NavButton = ({ children, onClick, colorClass = 'bg-[#4da6ff] hover:bg-[#3a99ee]', icon = null }) => (
+            <button
+                onClick={onClick}
+                className={`flex items-center justify-center p-3 sm:p-4 text-lg sm:text-xl font-bold rounded-xl shadow-md transition-all duration-300 transform hover:scale-105 ${colorClass} text-white`}
+            >
+                {/* Muestra un icono si se proporciona */}
+                {icon && <span className="mr-2 text-2xl sm:text-3xl">{icon}</span>}
+                {children} {/* Texto del botón */}
+            </button>
+        );
+
+        // Componente para la página de inicio
+        const HomePage = ({ navigateTo, initializeAndPlaySound }) => (
+            <div className="text-center">
+                {/* Título animado y llamativo */}
+                <h1 className="text-4xl sm:text-6xl font-extrabold mb-8 text-[#9a4aff] animate-bounce">
+                    ¡Aprende Jugando con los Textos! 📚✨
+                </h1>
+                {/* Párrafo introductorio */}
+                <p className="text-lg sm:text-xl mb-12 leading-relaxed">
+                    ¡Hola, pequeños exploradores de las palabras! Prepárense para una emocionante aventura donde descubriremos el increíble mundo de los tipos de texto. ¿Listos para aprender y divertirnos?
+                </p>
+
+                {/* Grid de botones de navegación a las diferentes secciones */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                    <NavButton onClick={() => { initializeAndPlaySound(); navigateTo('narrativo'); }} icon="📖" colorClass="bg-[#ff7f50] hover:bg-[#e66c40]">
+                        Texto Narrativo
+                    </NavButton>
+                    <NavButton onClick={() => { initializeAndPlaySound(); navigateTo('descriptivo'); }} icon="🎨" colorClass="bg-[#4da6ff] hover:bg-[#3a99ee]">
+                        Texto Descriptivo
+                    </NavButton>
+                    <NavButton onClick={() => { initializeAndPlaySound(); navigateTo('expositivo'); }} icon="💡" colorClass="bg-[#ffe066] text-[#1a1a2e] hover:bg-[#e0c65c]">
+                        Texto Expositivo
+                    </NavButton>
+                    <NavButton onClick={() => { initializeAndPlaySound(); navigateTo('argumentativo'); }} icon="🗣️" colorClass="bg-[#9a4aff] hover:bg-[#8038d1]">
+                        Texto Argumentativo
+                    </NavButton>
+                    <NavButton onClick={() => { initializeAndPlaySound(); navigateTo('teoria'); }} icon="🧠" colorClass="bg-[#6c757d] hover:bg-[#5a6268]">
+                        Teoría del Texto
+                    </NavButton>
+                </div>
+
+                {/* Instrucción al usuario */}
+                <p className="text-md sm:text-lg mt-12 opacity-80">
+                    ¡Haz clic en cada tipo de texto para empezar!
+                </p>
+            </div>
+        );
+
+        // Componente Modal para las actividades del cuaderno
+        const ActivityModal = ({ title, instructions, onClose }) => {
+            return (
+                // Overlay oscuro que cubre toda la pantalla
+                <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+                    {/* Contenedor del modal */}
+                    <div className="bg-[#2a2a4a] rounded-xl shadow-lg p-6 sm:p-8 max-w-2xl w-full text-[#e0e0e0] relative">
+                        {/* Botón para cerrar el modal */}
+                        <button
+                            onClick={onClose}
+                            className="absolute top-4 right-4 text-white text-3xl font-bold p-2 rounded-full hover:bg-gray-700 transition-colors"
+                        >
+                            &times; {/* Símbolo de la X para cerrar */}
+                        </button>
+                        {/* Título de la actividad en el modal */}
+                        <h3 className="text-3xl sm:text-4xl font-bold text-[#ffe066] mb-6 text-center">
+                            {title} 📝
+                        </h3>
+                        {/* Instrucciones de la actividad */}
+                        <div className="text-lg leading-relaxed mb-8">
+                            {instructions}
+                        </div>
+                        {/* Botón para cerrar el modal */}
+                        <div className="text-center">
+                            <NavButton onClick={onClose} colorClass="bg-[#6c757d] hover:bg-[#5a6268]">
+                                Entendido, ¡a mi cuaderno!
+                            </NavButton>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Componente para la página de Texto Narrativo
+        const NarrativeTextPage = ({ navigateTo, initializeAndPlaySound }) => {
+            // Estado para el feedback de la actividad, el elemento arrastrado y la puntuación
+            const [feedback, setFeedback] = React.useState('');
+            const [droppedItem, setDroppedItem] = React.useState(null);
+            const [score, setScore] = React.useState(0); // Nuevo estado para la puntuación
+
+            // Lista de palabras disponibles para arrastrar
+            const [availableWords, setAvailableWords] = React.useState([
+                'Cuento', 'Noticia', 'Fábula', 'Receta', 'Biografía', 'Ensayo', 'Leyenda', 'Artículo científico'
+            ]);
+            // Lista de palabras correctas que son ejemplos de texto narrativo
+            const correctNarrativeExamples = ['Cuento', 'Fábula', 'Biografía', 'Leyenda'];
+
+            // Estado para controlar la visibilidad del modal de la actividad del cuaderno
+            const [showNarrativeActivityModal, setShowNarrativeActivityModal] = React.useState(false);
+
+            // Contenido de la actividad del cuaderno para el modal (EXTENDIDA)
+            const narrativeActivityContent = (
+                <>
+                    <p className="text-lg mb-4 leading-relaxed font-bold text-[#ff7f50]">
+                        Tiempo estimado: 1 hora
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 1: ¡Imagina un personaje principal! (15 minutos)**
+                        <br/>
+                        En tu cuaderno, piensa en un personaje principal para una historia. Describe su apariencia, su personalidad, qué le gusta hacer y qué le disgusta. ¿Tiene algún poder especial o una característica única? ¡Dibújalo si quieres!
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 2: Crea un problema o aventura (15 minutos)**
+                        <br/>
+                        Ahora, piensa en un problema que tu personaje debe resolver o una aventura emocionante en la que se embarcará. ¿Hay un misterio que debe desentrañar? ¿Un objeto perdido que necesita encontrar? ¿Un viaje a un lugar mágico?
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 3: Desarrolla el inicio, nudo y desenlace (20 minutos)**
+                        <br/>
+                        Usando lo que imaginaste, escribe en tu cuaderno el inicio, el nudo (el desarrollo del problema) y el desenlace (cómo se resuelve y qué pasa al final) de tu historia. No tienen que ser largos, solo las ideas principales de cada parte.
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 4: ¡Escribe tu mini-historia! (10 minutos)**
+                        <br/>
+                        Con tus ideas organizadas, escribe una mini-historia (uno o dos párrafos) en tu cuaderno, uniendo el inicio, nudo y desenlace. ¡Recuerda usar un narrador que cuente los eventos!
+                    </p>
+                    <p className="text-lg font-semibold text-center mt-6">
+                        ¡Cuando termines, puedes compartir tu historia con alguien!
+                    </p>
+                </>
+            );
+
+            // Manejador para el inicio del arrastre
+            const handleDragStart = (e, item) => {
+                e.dataTransfer.setData('text/plain', item); // Guarda el nombre del elemento arrastrado
+            };
+
+            // Manejador para cuando se suelta un elemento
+            const handleDrop = (e) => {
+                e.preventDefault();
+                const data = e.dataTransfer.getData('text/plain'); // Recupera el dato arrastrado
+
+                // Verifica si el elemento arrastrado es un ejemplo narrativo correcto
+                if (correctNarrativeExamples.includes(data)) {
+                    // Si es correcto y no ha sido arrastrado antes, aumenta la puntuación
+                    if (!droppedItem || droppedItem !== data) { // Evita puntos dobles si se arrastra el mismo item
+                        setScore(prevScore => prevScore + 10); // Suma 10 puntos por respuesta correcta
+                        setFeedback(`¡Correcto! "${data}" es un texto narrativo. 🎉`);
+                        initializeAndPlaySound('correct'); // Reproduce sonido correcto
+
+                        // Elimina la palabra de las opciones disponibles
+                        setAvailableWords(prevWords => prevWords.filter(word => word !== data));
+                    } else {
+                        setFeedback(`¡Ya arrastraste "${data}"!`);
+                    }
+                } else {
+                    setFeedback(`¡Inténtalo de nuevo! "${data}" no es un ejemplo de texto narrativo.`);
+                    initializeAndPlaySound('incorrect'); // Reproduce sonido incorrecto
+                }
+                setDroppedItem(data); // Actualiza el item soltado (se muestra en la caja)
+            };
+
+            // Manejador para permitir el arrastre sobre el área de destino
+            const handleDragOver = (e) => {
+                e.preventDefault();
+            };
+
+            return (
+                <div className="relative p-4">
+                    <h2 className="text-3xl sm:text-5xl font-extrabold mb-6 text-[#ff7f50] text-center">
+                        Texto Narrativo 📖
+                    </h2>
+                    <p className="text-md sm:text-lg mb-6 leading-relaxed">
+                        El texto narrativo se encarga de relatar una serie de eventos, ya sean reales o imaginarios, construyendo un universo donde los personajes interactúan en una trama específica y en un ambiente determinado. El narrador es la voz que guía al lector a través de esta secuencia de acontecimientos.
+                    </p>
+                    <p className="text-md sm:text-lg mb-8 leading-relaxed">
+                        Ejemplos clásicos incluyen novelas, cuentos, fábulas y biografías.
+                    </p>
+
+                    {/* Sección de conceptos clave del texto narrativo */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8 text-center">
+                        <div className="bg-[#3a3a5a] p-4 rounded-xl shadow-inner border border-[#4a4a6a]">
+                            <h3 className="text-xl sm:text-2xl font-bold text-[#ffe066] mb-3">Personajes 🧑‍🤝‍🧑</h3>
+                            <p className="text-base sm:text-lg">Seres que participan en la historia y mueven la trama.</p>
+                        </div>
+                        <div className="bg-[#3a3a5a] p-4 rounded-xl shadow-inner border border-[#4a4a6a]">
+                            <h3 className="text-xl sm:text-2xl font-bold text-[#ffe066] mb-3">Trama 📜</h3>
+                            <p className="text-base sm:text-lg">La secuencia de eventos que forman la historia.</p>
+                        </div>
+                        <div className="bg-[#3a3a5a] p-4 rounded-xl shadow-inner border border-[#4a4a6a]">
+                            <h3 className="text-xl sm:text-2xl font-bold text-[#ffe066] mb-3">Ambiente 🌳</h3>
+                            <p className="text-base sm:text-lg">El tiempo y el lugar donde se desarrolla la narración.</p>
+                        </div>
+                        <div className="bg-[#3a3a5a] p-4 rounded-xl shadow-inner border border-[#4a4a6a]">
+                            <h3 className="text-xl sm:text-2xl font-bold text-[#ffe066] mb-3">Narrador 🗣️</h3>
+                            <p className="text-base sm:text-lg">La voz que cuenta la historia al lector.</p>
+                        </div>
+                    </div>
+
+                    {/* Actividad de arrastrar y soltar (interactiva) */}
+                    <h3 className="text-2xl sm:text-3xl font-bold text-[#4da6ff] mb-4 text-center">Actividad Interactiva: ¡Arrastra los ejemplos narrativos!</h3>
+                    <p className="mb-4 text-lg text-center">Arrastra todos los ejemplos correctos de texto narrativo a la caja. <span className="font-bold text-[#ffe066]">Puntos: {score}</span></p>
+                    <div className="flex flex-wrap justify-center gap-4 mb-6">
+                        {/* Mapea las palabras disponibles para arrastrar */}
+                        {availableWords.map((word) => (
+                            <div
+                                key={word}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, word)}
+                                className="cursor-grab bg-[#9a4aff] p-3 rounded-lg shadow-md hover:bg-[#8038d1] transition-colors text-white"
+                            >
+                                {word}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Área donde se suelta el elemento */}
+                    <div
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        className="w-full max-w-sm h-24 border-dashed border-4 border-[#ffe066] rounded-xl flex items-center justify-center text-xl text-[#ffe066] p-4 transition-all duration-300"
+                    >
+                        {feedback ? (
+                            <span className={`font-bold ${feedback.includes('Correcto') ? 'text-green-400' : 'text-red-400'}`}>{feedback}</span>
+                        ) : (
+                            'Suelta aquí los ejemplos de texto narrativo'
+                        )}
+                    </div>
+                    {/* Muestra el feedback al usuario */}
+                    {feedback && !feedback.includes('¡Correcto!') && (
+                        <p className={`mt-4 text-lg font-bold ${feedback.includes('Correcto') ? 'text-green-400' : 'text-red-400'}`}>
+                            {feedback}
+                        </p>
+                    )}
+
+
+                    {/* Botón para abrir la actividad del cuaderno */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => setShowNarrativeActivityModal(true)} icon="📝" colorClass="bg-[#3a3a5a] hover:bg-[#4a4a6a]">
+                            Actividad para tu Cuaderno
+                        </NavButton>
+                    </div>
+
+                    {/* Renderiza el modal si showNarrativeActivityModal es true */}
+                    {showNarrativeActivityModal && (
+                        <ActivityModal
+                            title="Actividad Narrativa para tu Cuaderno"
+                            instructions={narrativeActivityContent}
+                            onClose={() => setShowNarrativeActivityModal(false)}
+                        />
+                    )}
+
+                    {/* Botón para volver al menú principal */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => navigateTo('home')} icon="🏠">
+                            Volver al Menú Principal
+                        </NavButton>
+                    </div>
+                </div>
+            );
+        };
+
+        // Componente para la página de Texto Descriptivo (AHORA CON TRIVIA EXTENDIDA)
+        const DescriptiveTextPage = ({ navigateTo, initializeAndPlaySound }) => {
+            const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
+            const [score, setScore] = React.useState(0);
+            const [feedback, setFeedback] = React.useState('');
+            const [quizCompleted, setQuizCompleted] = React.useState(false);
+
+            // Definición de las preguntas de la trivia descriptiva
+            const descriptiveQuestions = [
+                {
+                    questionText: "¿Cuál de estas frases describe mejor una característica visual?",
+                    options: [
+                        "A) El perro ladró fuertemente.",
+                        "B) La flor tenía pétalos suaves y de un intenso color rojo.", // Correcta
+                        "C) Juan corrió rápidamente hacia la meta.",
+                        "D) La música sonaba alegremente."
+                    ],
+                    correctAnswer: "B) La flor tenía pétalos suaves y de un intenso color rojo."
+                },
+                {
+                    questionText: "Si estás describiendo el sabor de un limón, ¿qué adjetivo usarías principalmente?",
+                    options: [
+                        "A) Áspero",
+                        "B) Dulce",
+                        "C) Ácido", // Correcta
+                        "D) Aromático"
+                    ],
+                    correctAnswer: "C) Ácido"
+                },
+                {
+                    questionText: "¿Cuál es el propósito principal de un texto descriptivo?",
+                    options: [
+                        "A) Contar una historia emocionante.",
+                        "B) Convencer al lector de una idea.",
+                        "C) Pintar una imagen detallada con palabras para el lector.", // Correcta
+                        "D) Dar instrucciones paso a paso."
+                    ],
+                    correctAnswer: "C) Pintar una imagen detallada con palabras para el lector."
+                },
+                {
+                    questionText: "Para describir cómo se siente la piel de un cactus, ¿qué sentido usarías principalmente?",
+                    options: [
+                        "A) Vista",
+                        "B) Oído",
+                        "C) Tacto", // Correcta
+                        "D) Olfato"
+                    ],
+                    correctAnswer: "C) Tacto"
+                },
+                {
+                    questionText: "Un buen texto descriptivo SIEMPRE busca:",
+                    options: [
+                        "A) Ser muy breve y general.",
+                        "B) Usar solo sustantivos.",
+                        "C) Ayudar al lector a imaginar con detalles sensoriales.", // Correcta
+                        "D) Expresar una opinión personal."
+                    ],
+                    correctAnswer: "C) Ayudar al lector a imaginar con detalles sensoriales."
+                }
+            ];
+
+            // Manejador para la selección de una respuesta en la trivia
+            const handleAnswerSelection = (selectedOption) => {
+                const currentQuestion = descriptiveQuestions[currentQuestionIndex];
+                if (selectedOption === currentQuestion.correctAnswer) {
+                    setFeedback('¡Correcto! 🎉');
+                    initializeAndPlaySound('correct');
+                    setScore(prevScore => prevScore + 20); // Cada pregunta vale 20 puntos (5 preguntas * 20 puntos = 100)
+                } else {
+                    setFeedback('¡Incorrecto! Inténtalo de nuevo en la siguiente pregunta.');
+                    initializeAndPlaySound('incorrect');
+                }
+
+                // Pasa a la siguiente pregunta o finaliza el quiz después de un breve delay
+                setTimeout(() => {
+                    setFeedback(''); // Limpia el feedback
+                    if (currentQuestionIndex < descriptiveQuestions.length - 1) {
+                        setCurrentQuestionIndex(prevIndex => prevIndex + 1);
+                    } else {
+                        setQuizCompleted(true); // Marca el quiz como completado
+                    }
+                }, 1000); // Pequeña pausa para que se vea el feedback
+            };
+
+
+            // Estado para controlar la visibilidad del modal de la actividad del cuaderno
+            const [showDescriptiveActivityModal, setShowDescriptiveActivityModal] = React.useState(false);
+
+            // Contenido de la actividad del cuaderno para el modal (EXTENDIDA)
+            const descriptiveActivityContent = (
+                <>
+                    <p className="text-lg mb-4 leading-relaxed font-bold text-[#4da6ff]">
+                        Tiempo estimado: 1 hora
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 1: Elige un lugar (15 minutos)**
+                        <br/>
+                        En tu cuaderno, piensa en un lugar que conozcas muy bien y te guste mucho: tu habitación, un parque cercano, la casa de tu abuela, tu colegio. ¿Qué lugar elegirías para describir con todo detalle?
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 2: ¡Activa tus sentidos! (20 minutos)**
+                        <br/>
+                        Haz una lista de todo lo que puedes percibir en ese lugar usando tus cinco sentidos:
+                        <ul className="list-disc list-inside ml-6 mt-2">
+                            <li>**Vista:** ¿Qué colores, formas, tamaños, texturas ves? ¿Hay objetos grandes o pequeños?</li>
+                            <li>**Oído:** ¿Qué sonidos escuchas? (pájaros, coches, risas, silencio).</li>
+                            <li>**Olfato:** ¿Hay algún olor particular? (flores, comida, lluvia).</li>
+                            <li>**Tacto:** ¿Cómo se sienten las cosas? (suave, rugoso, frío, cálido).</li>
+                            <li>**Gusto (si aplica):** Si hay comida o bebida, ¿a qué sabe?</li>
+                        </ul>
+                        ¡Sé lo más detallado posible!
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 3: Escribe tu descripción (25 minutos)**
+                        <br/>
+                        Con tus listas de sentidos, escribe un texto descriptivo de al menos tres párrafos sobre el lugar que elegiste. Usa muchos adjetivos y comparaciones (ej. "tan brillante como un espejo", "suave como el algodón"). Intenta que quien lo lea pueda imaginarse el lugar sin haberlo visto.
+                    </p>
+                    <p className="text-lg font-semibold text-center mt-6">
+                        ¡Lee tu descripción en voz alta! ¿Te transporta al lugar?
+                    </p>
+                </>
+            );
+
+            return (
+                <div className="relative p-4">
+                    <h2 className="text-3xl sm:text-5xl font-extrabold mb-6 text-[#4da6ff] text-center">
+                        Texto Descriptivo 🎨
+                    </h2>
+                    <p className="text-md sm:text-lg mb-6 leading-relaxed">
+                        El texto descriptivo tiene como propósito principal pintar con palabras una imagen o idea, detallando las características de personas, lugares, objetos, situaciones o emociones. Utiliza adjetivos, sustantivos y comparaciones para que el lector pueda imaginar lo que se describe.
+                    </p>
+                    <p className="text-md sm:text-lg mb-8 leading-relaxed">
+                        Puedes encontrar descripciones en novelas, cuentos, guías de viaje, retratos y hasta en anuncios.
+                    </p>
+
+                    {/* Actividad de Trivia */}
+                    <h3 className="text-2xl sm:text-3xl font-bold text-[#ff7f50] mb-4 text-center">Actividad Interactiva: ¡Trivia Descriptiva!</h3>
+
+                    {!quizCompleted ? (
+                        <div className="flex flex-col items-center justify-center p-4">
+                            <p className="text-xl sm:text-2xl font-semibold mb-4 text-[#ffe066]">
+                                Pregunta {currentQuestionIndex + 1} de {descriptiveQuestions.length}
+                            </p>
+                            <p className="mb-6 text-lg text-center leading-relaxed">
+                                {descriptiveQuestions[currentQuestionIndex].questionText}
+                            </p>
+                            <div className="flex flex-col gap-4 max-w-lg w-full mx-auto">
+                                {descriptiveQuestions[currentQuestionIndex].options.map((option, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleAnswerSelection(option)}
+                                        className="p-3 rounded-lg shadow-md transition-all duration-200 text-left bg-[#3a3a5a] hover:bg-[#4a4a6a] text-white"
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
+                            </div>
+                            {feedback && (
+                                <p className={`mt-4 text-lg font-bold text-center ${feedback.includes('Correcto') ? 'text-green-400' : 'text-red-400'}`}>
+                                    {feedback}
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="text-center p-4">
+                            <h3 className="text-3xl sm:text-4xl font-extrabold text-[#ffe066] mb-4">
+                                ¡Trivia Completada! 🎉
+                            </h3>
+                            <p className="text-2xl sm:text-3xl font-bold mb-6">
+                                Tu puntaje final es: <span className="text-[#9a4aff]">{score}</span> / {descriptiveQuestions.length * 20}
+                            </p>
+                            <NavButton onClick={() => {
+                                setQuizCompleted(false);
+                                setCurrentQuestionIndex(0);
+                                setScore(0);
+                                setFeedback('');
+                            }} colorClass="bg-[#ff7f50] hover:bg-[#e66c40]">
+                                Repetir Trivia
+                            </NavButton>
+                        </div>
+                    )}
+
+
+                    {/* Botón para abrir la actividad del cuaderno */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => setShowDescriptiveActivityModal(true)} icon="📝" colorClass="bg-[#3a3a5a] hover:bg-[#4a4a6a]">
+                            Actividad para tu Cuaderno
+                        </NavButton>
+                    </div>
+
+                    {/* Renderiza el modal si showDescriptiveActivityModal es true */}
+                    {showDescriptiveActivityModal && (
+                        <ActivityModal
+                            title="Actividad Descriptiva para tu Cuaderno"
+                            instructions={descriptiveActivityContent}
+                            onClose={() => setShowDescriptiveActivityModal(false)}
+                        />
+                    )}
+
+                    {/* Botón para volver al menú principal */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => navigateTo('home')} icon="🏠">
+                            Volver al Menú Principal
+                        </NavButton>
+                    </div>
+                </div>
+            );
+        };
+
+        // Componente para la página de Texto Expositivo
+        const ExpositoryTextPage = ({ navigateTo, initializeAndPlaySound }) => {
+            // Estados para la respuesta del usuario y el feedback
+            const [answer, setAnswer] = React.useState('');
+            const [feedback, setFeedback] = React.useState('');
+            // Estado para controlar la visibilidad del modal de la actividad del cuaderno
+            const [showExpositoryActivityModal, setShowExpositoryActivityModal] = React.useState(false);
+
+            // Contenido de la actividad del cuaderno para el modal (EXTENDIDA)
+            const expositoryActivityContent = (
+                <>
+                    <p className="text-lg mb-4 leading-relaxed font-bold text-[#ffe066]">
+                        Tiempo estimado: 1 hora
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 1: Elige un tema de interés (10 minutos)**
+                        <br/>
+                        En tu cuaderno, piensa en un tema que te genere curiosidad y del que quieras aprender más (ej. "Los planetas del sistema solar", "La vida de los gatos", "Cómo se forman los arcoíris", "Inventos importantes"). Escribe 3 preguntas que tengas sobre este tema.
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 2: ¡A investigar! (30 minutos)**
+                        <br/>
+                        Usando libros, enciclopedias o una fuente de internet confiable (pídele ayuda a un adulto si usas internet), investiga las respuestas a tus preguntas y busca al menos 3 datos interesantes sobre tu tema. Anota la información clave en tu cuaderno.
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 3: Organiza tus ideas (10 minutos)**
+                        <br/>
+                        Crea un esquema o un mapa mental en tu cuaderno para organizar la información que encontraste. Piensa en una introducción, 2 o 3 ideas principales que vas a explicar, y una conclusión.
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 4: Escribe tu texto expositivo (10 minutos)**
+                        <br/>
+                        Ahora, escribe un texto expositivo corto en tu cuaderno (dos o tres párrafos) explicando tu tema de manera clara y objetiva, usando la información que investigaste y organizaste. ¡Recuerda que debes informar, no opinar!
+                    </p>
+                    <p className="text-lg font-semibold text-center mt-6">
+                        ¡Comparte tu texto con alguien y enséñale algo nuevo!
+                    </p>
+                </>
+            );
+
+            // Manejador para el envío de la respuesta
+            const handleSubmit = () => {
+                // Verifica si la respuesta contiene la palabra clave y actualiza el feedback
+                if (answer.toLowerCase().includes('informar') || answer.toLowerCase().includes('explicar')) {
+                    setFeedback('¡Fantástico! El texto expositivo busca informar o explicar. 🎉');
+                    initializeAndPlaySound('correct'); // Reproduce sonido correcto
+                } else {
+                    setFeedback('¡Casi! Piensa en la principal misión de este tipo de texto.');
+                    initializeAndPlaySound('incorrect'); // Reproduce sonido incorrecto
+                }
+            };
+
+            return (
+                <div className="relative p-4">
+                    <h2 className="text-3xl sm:text-5xl font-extrabold mb-6 text-[#ffe066] text-center">
+                        Texto Expositivo 💡
+                    </h2>
+                    <p className="text-md sm:text-lg mb-6 leading-relaxed">
+                        El texto expositivo tiene como objetivo principal informar de manera clara y objetiva sobre un tema específico. No busca convencer ni contar una historia, sino explicar hechos, conceptos o ideas de forma organizada y estructurada.
+                    </p>
+                    <p className="text-md sm:text-lg mb-8 leading-relaxed">
+                        Ejemplos de textos expositivos son los libros de texto, enciclopedias, artículos científicos, noticias y manuales.
+                    </p>
+
+                    {/* Actividad de rellenar el espacio (interactiva) */}
+                    <h3 className="text-2xl sm:text-3xl font-bold text-[#9a4aff] mb-4 text-center">Actividad Interactiva: Completa la frase</h3>
+                    <p className="mb-4 text-lg text-center">El propósito principal de un texto expositivo es __________.</p>
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-lg mx-auto">
+                        {/* Campo de entrada de texto */}
+                        <input
+                            type="text"
+                            value={answer}
+                            onChange={(e) => setAnswer(e.target.value)} // Actualiza el estado con la entrada del usuario
+                            placeholder="Escribe tu respuesta aquí..."
+                            className="flex-grow p-3 rounded-lg bg-[#3a3a5a] text-[#e0e0e0] placeholder-[#b0b0b0] border border-[#4a4a6a] focus:outline-none focus:ring-2 focus:ring-[#ffe066]"
+                        />
+                        {/* Botón para verificar la respuesta */}
+                        <NavButton onClick={handleSubmit} colorClass="bg-[#ff7f50] hover:bg-[#e66c40]">
+                            Verificar
+                        </NavButton>
+                    </div>
+                    {/* Muestra el feedback al usuario */}
+                    {feedback && (
+                        <p className={`mt-4 text-lg font-bold text-center ${feedback.includes('Fantástico') ? 'text-green-400' : 'text-red-400'}`}>
+                            {feedback}
+                        </p>
+                    )}
+
+                    {/* Botón para abrir la actividad del cuaderno */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => setShowExpositoryActivityModal(true)} icon="📝" colorClass="bg-[#3a3a5a] hover:bg-[#4a4a6a]">
+                            Actividad para tu Cuaderno
+                        </NavButton>
+                    </div>
+
+                    {/* Renderiza el modal si showExpositoryActivityModal es true */}
+                    {showExpositoryActivityModal && (
+                        <ActivityModal
+                            title="Actividad Expositiva para tu Cuaderno"
+                            instructions={expositoryActivityContent}
+                            onClose={() => setShowExpositoryActivityModal(false)}
+                        />
+                    )}
+
+                    {/* Botón para volver al menú principal */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => navigateTo('home')} icon="🏠">
+                            Volver al Menú Principal
+                        </NavButton>
+                    </div>
+                </div>
+            );
+        };
+
+        // Componente para la página de Texto Argumentativo
+        const ArgumentativeTextPage = ({ navigateTo, initializeAndPlaySound }) => {
+            // Estados para los elementos seleccionados y el feedback
+            const [selectedItems, setSelectedItems] = React.useState([]);
+            const [feedback, setFeedback] = React.useState('');
+            // Estado para controlar la visibilidad del modal de la actividad del cuaderno
+            const [showArgumentativeActivityModal, setShowArgumentativeActivityModal] = React.useState(false);
+
+            // Contenido de la actividad del cuaderno para el modal (EXTENDIDA)
+            const argumentativeActivityContent = (
+                <>
+                    <p className="text-lg mb-4 leading-relaxed font-bold text-[#9a4aff]">
+                        Tiempo estimado: 1 hora
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 1: Elige un tema de debate (15 minutos)**
+                        <br/>
+                        Piensa en un tema sobre el que tengas una opinión clara, y que se pueda debatir (ej. "¿Deberían los estudiantes usar uniformes en la escuela?", "¿Es mejor leer libros físicos o digitales?", "¿Es importante reciclar?"). Escribe tu opinión o "tesis" en tu cuaderno.
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 2: Busca argumentos para tu tesis (20 minutos)**
+                        <br/>
+                        Ahora, anota al menos 3 razones o pruebas que apoyen tu opinión. Piensa en por qué crees lo que crees. ¡Estas serán tus argumentos!
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 3: Piensa en un contra-argumento (10 minutos)**
+                        <br/>
+                        Para que tu texto argumentativo sea más fuerte, piensa en una razón que alguien podría dar en contra de tu opinión, y luego, piensa cómo refutarías ese contra-argumento (cómo le darías la vuelta para seguir defendiendo tu tesis).
+                    </p>
+                    <p className="text-lg mb-4 leading-relaxed">
+                        **Paso 4: Escribe tu texto argumentativo (15 minutos)**
+                        <br/>
+                        Usando tu tesis, tus argumentos y tu contra-argumento (con su refutación), escribe un texto argumentativo en tu cuaderno. Incluye una introducción donde presentas tu tesis, un desarrollo con tus argumentos y la refutación, y una conclusión que reafirme tu opinión.
+                    </p>
+                    <p className="text-lg font-semibold text-center mt-6">
+                        ¡Practica presentándolo a un amigo o familiar!
+                    </p>
+                </>
+            );
+
+            // Elementos correctos para la actividad
+            const correctItems = ['Tesis', 'Argumentos', 'Conclusión'];
+
+            // Manejador para alternar la selección de un elemento
+            const handleToggle = (item) => {
+                setSelectedItems((prev) =>
+                    prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item] // Añade o quita el elemento de la selección
+                );
+            };
+
+            // Manejador para el envío de la actividad
+            const handleSubmit = () => {
+                // Comprueba si los elementos seleccionados coinciden con los correctos
+                const isCorrect =
+                    selectedItems.length === correctItems.length &&
+                    correctItems.every((item) => selectedItems.includes(item));
+                if (isCorrect) {
+                    setFeedback('¡Increíble! Esas son las partes principales de un texto argumentativo. 🎉');
+                    initializeAndPlaySound('correct'); // Reproduce sonido correcto
+                } else {
+                    setFeedback('¡Sigue intentándolo! Revisa las partes fundamentales.');
+                    initializeAndPlaySound('incorrect'); // Reproduce sonido incorrecto
+                }
+            };
+
+            // Todos los elementos disponibles para la actividad
+            const allItems = [
+                'Tesis',
+                'Introducción',
+                'Personajes',
+                'Argumentos',
+                'Conclusión',
+                'Narrador',
+            ];
+
+            return (
+                <div className="relative p-4">
+                    <h2 className="text-3xl sm:text-5xl font-extrabold mb-6 text-[#9a4aff] text-center">
+                        Texto Argumentativo 🗣️
+                    </h2>
+                    <p className="text-md sm:text-lg mb-6 leading-relaxed">
+                        El texto argumentativo tiene como finalidad defender una idea (llamada tesis) y convencer al lector de su validez, o persuadirlo para que adopte una postura o realice una acción. Para ello, presenta razones o pruebas (argumentos) que apoyan la tesis.
+                    </p>
+                    <p className="text-md sm:text-lg mb-8 leading-relaxed">
+                        Lo encontramos en editoriales de periódicos, ensayos, discursos políticos, críticas y debates.
+                    </p>
+
+                    {/* Actividad de categorización (interactiva) */}
+                    <h3 className="text-2xl sm:text-3xl font-bold text-[#ffe066] mb-4 text-center">Actividad Interactiva: Partes del Argumentativo</h3>
+                    <p className="mb-6 text-lg text-center">Selecciona las tres partes más importantes de un texto argumentativo:</p>
+                    <div className="flex flex-wrap justify-center gap-3 mb-6 max-w-2xl mx-auto">
+                        {/* Mapea y renderiza los botones de selección */}
+                        {allItems.map((item) => (
+                            <button
+                                key={item}
+                                onClick={() => handleToggle(item)}
+                                className={`p-3 rounded-lg shadow-md transition-colors duration-200 ${
+                                    selectedItems.includes(item)
+                                        ? 'bg-[#4da6ff] text-white' // Estilo si está seleccionado
+                                        : 'bg-[#3a3a5a] hover:bg-[#4a4a6a] text-[#e0e0e0]' // Estilo si no está seleccionado
+                                }`}
+                            >
+                                {item}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="text-center">
+                        {/* Botón para verificar la selección */}
+                        <NavButton onClick={handleSubmit} colorClass="bg-[#ff7f50] hover:bg-[#e66c40]">
+                            Verificar
+                        </NavButton>
+                    </div>
+                    {/* Muestra el feedback al usuario */}
+                    {feedback && (
+                        <p className={`mt-4 text-lg font-bold text-center ${feedback.includes('Increíble') ? 'text-green-400' : 'text-red-400'}`}>
+                            {feedback}
+                        </p>
+                    )}
+
+                    {/* Botón para abrir la actividad del cuaderno */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => setShowArgumentativeActivityModal(true)} icon="📝" colorClass="bg-[#3a3a5a] hover:bg-[#4a4a6a]">
+                            Actividad para tu Cuaderno
+                        </NavButton>
+                    </div>
+
+                    {/* Renderiza el modal si showArgumentativeActivityModal es true */}
+                    {showArgumentativeActivityModal && (
+                        <ActivityModal
+                            title="Actividad Argumentativa para tu Cuaderno"
+                            instructions={argumentativeActivityContent}
+                            onClose={() => setShowArgumentativeActivityModal(false)}
+                        />
+                    )}
+
+                    {/* Botón para volver al menú principal */}
+                    <div className="mt-12 text-center">
+                        <NavButton onClick={() => navigateTo('home')} icon="🏠">
+                            Volver al Menú Principal
+                        </NavButton>
+                    </div>
+                </div>
+            );
+        };
+
+        // Componente para la página de Teoría del Texto
+        const TheoryPage = ({ navigateTo, initializeAndPlaySound }) => (
+            <div className="relative p-4">
+                <h2 className="text-3xl sm:text-5xl font-extrabold mb-6 text-[#6c757d] text-center">
+                    Teoría del Texto 🧠
+                </h2>
+                <p className="text-md sm:text-lg mb-6 leading-relaxed">
+                    Un texto es cualquier conjunto de palabras que tiene un sentido completo y una intención comunicativa. Puede ser escrito u oral. ¡Piensa en un cuento, una conversación, un cartel o un mensaje de WhatsApp! Todos son textos.
+                </p>
+                <p className="text-md sm:text-lg mb-6 leading-relaxed">
+                    Los textos sirven para muchísimas cosas: para contar historias, para informar, para explicar cómo hacer algo, para convencer, para expresar sentimientos... Cada texto tiene un propósito.
+                </p>
+                <p className="text-md sm:text-lg mb-8 leading-relaxed">
+                    Las características principales de un buen texto son:
+                </p>
+                {/* Lista de características del texto con estilos destacados */}
+                <ul className="list-disc list-inside text-lg space-y-2 mb-8 ml-4">
+                    <li>
+                        <span className="font-bold text-[#ff7f50]">Coherencia:</span> Que las ideas estén relacionadas y tengan sentido lógico.
+                    </li>
+                    <li>
+                        <span className="font-bold text-[#4da6ff]">Cohesión:</span> Que las palabras y frases estén bien conectadas entre sí (usando conectores como "y", "pero", "entonces").
+                    </li>
+                    <li>
+                        <span className="font-bold text-[#ffe066]">Adecuación:</span> Que el texto sea apropiado para la situación y el público al que va dirigido.
+                    </li>
+                </ul>
+
+                {/* Sección sobre la importancia de leer y escribir */}
+                <h3 className="text-2xl sm:text-3xl font-bold text-[#9a4aff] mb-4 text-center">¡Importancia!</h3>
+                <p className="text-md sm:text-lg mb-8 leading-relaxed text-center">
+                    Leer y escribir bien es súper importante porque nos ayuda a entender el mundo, a expresar lo que pensamos y sentimos, y a comunicarnos mejor con los demás. ¡Es una herramienta mágica!
+                </p>
+
+                {/* Botón para volver al menú principal */}
+                <div className="mt-12 text-center">
+                    <NavButton onClick={() => navigateTo('home')} icon="🏠">
+                        Volver al Menú Principal
+                    </NavButton>
+                </div>
+            </div>
+        );
+
+        // Monta el componente principal de la aplicación en el elemento con id 'root'
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
